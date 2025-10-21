@@ -3,6 +3,7 @@ import { ImageToPDF } from "@/components/ImageToPDF";
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { PdfEditor } from "@/components/PdfEditor";
 import { FileText } from "lucide-react";
+import { Footer } from "@/components/footer";
 
 const Index = () => {
   return (
@@ -51,11 +52,7 @@ const Index = () => {
       </main>
 
       {/* Footer */}
-      <footer className="container mx-auto px-4 py-8 mt-16 border-t">
-        <p className="text-center text-sm text-muted-foreground">
-          Built with React, TypeScript & pdf-lib
-        </p>
-      </footer>
+      <Footer />
     </div>
   );
 };
