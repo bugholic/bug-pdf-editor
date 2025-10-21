@@ -2,12 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Upload, Type, Image as ImageIcon, Download, Trash2, Move } from "lucide-react";
+import {
+  Upload,
+  Type,
+  Image as ImageIcon,
+  Download,
+  Trash2,
+  Move,
+} from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
+import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 
-// Configure PDF.js worker for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Configure PDF.js worker for react-pdf (Vite-friendly local worker)
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 type Tool = "select" | "text" | "image";
 
@@ -51,7 +59,7 @@ export const PdfEditor = () => {
 
   const selectedOverlay = useMemo(
     () => overlays.find((o) => o.id === selectedId) ?? null,
-    [overlays, selectedId],
+    [overlays, selectedId]
   );
 
   useEffect(() => {
@@ -64,21 +72,27 @@ export const PdfEditor = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onPdfSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF file");
-      return;
-    }
-    setPdfFile(file);
-    setOverlays([]);
-    setSelectedId(null);
-  }, []);
+  const onPdfSelected = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.type !== "application/pdf") {
+        toast.error("Please select a PDF file");
+        return;
+      }
+      setPdfFile(file);
+      setOverlays([]);
+      setSelectedId(null);
+    },
+    []
+  );
 
-  const onDocumentLoad = useCallback(({ numPages: nextNumPages }: { numPages: number }) => {
-    setNumPages(nextNumPages);
-  }, []);
+  const onDocumentLoad = useCallback(
+    ({ numPages: nextNumPages }: { numPages: number }) => {
+      setNumPages(nextNumPages);
+    },
+    []
+  );
 
   const addTextOverlayAt = useCallback(
     (pageIndex: number, clientX: number, clientY: number) => {
@@ -107,7 +121,7 @@ export const PdfEditor = () => {
       setSelectedId(id);
       setTool("select");
     },
-    [],
+    []
   );
 
   const onPageClick = useCallback(
@@ -116,7 +130,7 @@ export const PdfEditor = () => {
         addTextOverlayAt(pageIndex, e.clientX, e.clientY);
       }
     },
-    [addTextOverlayAt, tool],
+    [addTextOverlayAt, tool]
   );
 
   const onImageSelected = useCallback(
@@ -149,7 +163,7 @@ export const PdfEditor = () => {
       // reset input value to allow re-selecting same file later
       if (imageInputRef.current) imageInputRef.current.value = "";
     },
-    [],
+    []
   );
 
   const handleDrag = useCallback(
@@ -176,11 +190,17 @@ export const PdfEditor = () => {
             o.id === overlayId
               ? {
                   ...o,
-                  xPercent: Math.max(0, Math.min(1 - o.widthPercent, initX + dx)),
-                  yPercent: Math.max(0, Math.min(1 - o.heightPercent, initY + dy)),
+                  xPercent: Math.max(
+                    0,
+                    Math.min(1 - o.widthPercent, initX + dx)
+                  ),
+                  yPercent: Math.max(
+                    0,
+                    Math.min(1 - o.heightPercent, initY + dy)
+                  ),
                 }
-              : o,
-          ),
+              : o
+          )
         );
       };
       const onUp = () => {
@@ -190,46 +210,55 @@ export const PdfEditor = () => {
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp, { once: true });
     },
-    [overlays],
+    [overlays]
   );
 
-  const handleResize = useCallback((overlayId: string, pageIndex: number, e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleResize = useCallback(
+    (overlayId: string, pageIndex: number, e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-    const pageEl = pageRefs.current[pageIndex];
-    if (!pageEl) return;
-    const rect = pageEl.getBoundingClientRect();
+      const pageEl = pageRefs.current[pageIndex];
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startOverlay = overlays.find((o) => o.id === overlayId);
-    if (!startOverlay) return;
-    const initW = startOverlay.widthPercent;
-    const initH = startOverlay.heightPercent;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startOverlay = overlays.find((o) => o.id === overlayId);
+      if (!startOverlay) return;
+      const initW = startOverlay.widthPercent;
+      const initH = startOverlay.heightPercent;
 
-    const onMove = (ev: PointerEvent) => {
-      const dw = (ev.clientX - startX) / rect.width;
-      const dh = (ev.clientY - startY) / rect.height;
-      setOverlays((prev) =>
-        prev.map((o) =>
-          o.id === overlayId
-            ? {
-                ...o,
-                widthPercent: Math.max(0.02, Math.min(1 - o.xPercent, initW + dw)),
-                heightPercent: Math.max(0.02, Math.min(1 - o.yPercent, initH + dh)),
-              }
-            : o,
-        ),
-      );
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp, { once: true });
-  }, [overlays]);
+      const onMove = (ev: PointerEvent) => {
+        const dw = (ev.clientX - startX) / rect.width;
+        const dh = (ev.clientY - startY) / rect.height;
+        setOverlays((prev) =>
+          prev.map((o) =>
+            o.id === overlayId
+              ? {
+                  ...o,
+                  widthPercent: Math.max(
+                    0.02,
+                    Math.min(1 - o.xPercent, initW + dw)
+                  ),
+                  heightPercent: Math.max(
+                    0.02,
+                    Math.min(1 - o.yPercent, initH + dh)
+                  ),
+                }
+              : o
+          )
+        );
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+    },
+    [overlays]
+  );
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
@@ -280,7 +309,7 @@ export const PdfEditor = () => {
               color: rgb(
                 parseInt(item.color.slice(1, 3), 16) / 255,
                 parseInt(item.color.slice(3, 5), 16) / 255,
-                parseInt(item.color.slice(5, 7), 16) / 255,
+                parseInt(item.color.slice(5, 7), 16) / 255
               ),
               rotate: item.rotationDeg ? degrees(item.rotationDeg) : undefined,
               maxWidth: w - 4,
@@ -288,7 +317,9 @@ export const PdfEditor = () => {
           } else if (item.type === "image") {
             const arrayBuffer = await item.file.arrayBuffer();
             const isPng = item.file.type === "image/png";
-            const embedded = isPng ? await pdfDoc.embedPng(arrayBuffer) : await pdfDoc.embedJpg(arrayBuffer);
+            const embedded = isPng
+              ? await pdfDoc.embedPng(arrayBuffer)
+              : await pdfDoc.embedJpg(arrayBuffer);
             page.drawImage(embedded, {
               x,
               y,
@@ -301,7 +332,10 @@ export const PdfEditor = () => {
       }
 
       const bytes = await pdfDoc.save();
-      const blob = new Blob([bytes.buffer], { type: "application/pdf" });
+      // Create a fresh ArrayBuffer to avoid SharedArrayBuffer typing issues
+      const safeBuffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(safeBuffer).set(bytes);
+      const blob = new Blob([safeBuffer], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -318,13 +352,29 @@ export const PdfEditor = () => {
   return (
     <Card className="p-6 bg-gradient-to-b from-card to-card/50 shadow-[var(--shadow-elegant)]">
       <CardHeader className="p-0 mb-4">
+        <CardTitle className="text-xl">PDF Editor</CardTitle>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xl">PDF Editor</CardTitle>
           <div className="flex items-center gap-2">
-            <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={onPdfSelected} />
-            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={onImageSelected} />
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={onPdfSelected}
+            />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onImageSelected}
+            />
 
-            <Button variant="outline" size="sm" onClick={() => pdfInputRef.current?.click()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => pdfInputRef.current?.click()}
+            >
               <Upload className="mr-2" /> Upload PDF
             </Button>
             <Button
@@ -354,10 +404,20 @@ export const PdfEditor = () => {
             >
               <ImageIcon className="mr-2" /> Image
             </Button>
-            <Button variant="secondary" size="sm" onClick={exportPdf} disabled={!pdfFile}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={exportPdf}
+              disabled={!pdfFile}
+            >
               <Download className="mr-2" /> Export
             </Button>
-            <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={!selectedId}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteSelected}
+              disabled={!selectedId}
+            >
               <Trash2 className="mr-2" /> Delete
             </Button>
           </div>
@@ -368,17 +428,39 @@ export const PdfEditor = () => {
         {!pdfFile ? (
           <div className="border border-dashed rounded-md p-8 text-center text-muted-foreground">
             <p className="mb-4">Upload a PDF to start editing.</p>
-            <Button variant="outline" onClick={() => pdfInputRef.current?.click()}>
+            <Button
+              variant="outline"
+              onClick={() => pdfInputRef.current?.click()}
+            >
               <Upload className="mr-2" /> Choose PDF
             </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
-            <Document file={pdfFile} onLoadSuccess={onDocumentLoad} onLoadError={() => toast.error("Failed to load PDF")}> 
+            <Document
+              file={pdfFile}
+              onLoadSuccess={onDocumentLoad}
+              onLoadError={(err) => {
+                console.error(err);
+                toast.error(
+                  "Failed to load PDF. Ensure it's a valid PDF file."
+                );
+              }}
+              renderMode="canvas"
+            >
               {Array.from({ length: numPages }, (_, i) => (
-                <div key={i} className="relative border rounded-md overflow-hidden" ref={(el) => (pageRefs.current[i] = el)}>
+                <div
+                  key={i}
+                  className="relative border rounded-md overflow-hidden"
+                  ref={(el) => (pageRefs.current[i] = el)}
+                >
                   <div onClick={(e) => onPageClick(i, e)}>
-                    <Page pageNumber={i + 1} width={800} renderTextLayer={false} renderAnnotationLayer={false} />
+                    <Page
+                      pageNumber={i + 1}
+                      width={800}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
                   </div>
 
                   {overlays
@@ -390,8 +472,13 @@ export const PdfEditor = () => {
                         top: `${o.yPercent * 100}%`,
                         width: `${o.widthPercent * 100}%`,
                         height: `${o.heightPercent * 100}%`,
-                        transform: o.rotationDeg ? `rotate(${o.rotationDeg}deg)` : undefined,
-                        outline: o.id === selectedId ? "2px solid hsl(var(--primary))" : "none",
+                        transform: o.rotationDeg
+                          ? `rotate(${o.rotationDeg}deg)`
+                          : undefined,
+                        outline:
+                          o.id === selectedId
+                            ? "2px solid hsl(var(--primary))"
+                            : "none",
                         cursor: tool === "select" ? "move" : "default",
                         userSelect: "none",
                       };
@@ -406,14 +493,22 @@ export const PdfEditor = () => {
                               e.stopPropagation();
                               setSelectedId(o.id);
                             }}
-                            onPointerDown={(e) => tool === "select" && handleDrag(o.id, i, e)}
+                            onPointerDown={(e) =>
+                              tool === "select" && handleDrag(o.id, i, e)
+                            }
                             style={commonStyle}
                             className="bg-background/60 backdrop-blur-[1px] rounded-sm shadow-sm"
                           >
                             <textarea
                               value={o.text}
                               onChange={(e) =>
-                                setOverlays((prev) => prev.map((x) => (x.id === o.id && x.type === "text" ? { ...x, text: e.target.value } : x)))
+                                setOverlays((prev) =>
+                                  prev.map((x) =>
+                                    x.id === o.id && x.type === "text"
+                                      ? { ...x, text: e.target.value }
+                                      : x
+                                  )
+                                )
                               }
                               style={{
                                 width: "100%",
@@ -441,7 +536,16 @@ export const PdfEditor = () => {
                                     value={o.fontSize}
                                     onChange={(e) =>
                                       setOverlays((prev) =>
-                                        prev.map((x) => (x.id === o.id && x.type === "text" ? { ...x, fontSize: Number(e.target.value || 12) } : x)),
+                                        prev.map((x) =>
+                                          x.id === o.id && x.type === "text"
+                                            ? {
+                                                ...x,
+                                                fontSize: Number(
+                                                  e.target.value || 12
+                                                ),
+                                              }
+                                            : x
+                                        )
                                       )
                                     }
                                   />
@@ -453,7 +557,11 @@ export const PdfEditor = () => {
                                     value={o.color}
                                     onChange={(e) =>
                                       setOverlays((prev) =>
-                                        prev.map((x) => (x.id === o.id && x.type === "text" ? { ...x, color: e.target.value } : x)),
+                                        prev.map((x) =>
+                                          x.id === o.id && x.type === "text"
+                                            ? { ...x, color: e.target.value }
+                                            : x
+                                        )
                                       )
                                     }
                                   />
@@ -463,7 +571,13 @@ export const PdfEditor = () => {
                                     type="checkbox"
                                     checked={o.bold}
                                     onChange={(e) =>
-                                      setOverlays((prev) => prev.map((x) => (x.id === o.id && x.type === "text" ? { ...x, bold: e.target.checked } : x)))
+                                      setOverlays((prev) =>
+                                        prev.map((x) =>
+                                          x.id === o.id && x.type === "text"
+                                            ? { ...x, bold: e.target.checked }
+                                            : x
+                                        )
+                                      )
                                     }
                                   />
                                   Bold
@@ -484,11 +598,17 @@ export const PdfEditor = () => {
                             e.stopPropagation();
                             setSelectedId(o.id);
                           }}
-                          onPointerDown={(e) => tool === "select" && handleDrag(o.id, i, e)}
+                          onPointerDown={(e) =>
+                            tool === "select" && handleDrag(o.id, i, e)
+                          }
                           style={commonStyle}
                           className="bg-transparent"
                         >
-                          <img src={o.src} alt="overlay" className="w-full h-full object-contain select-none pointer-events-none" />
+                          <img
+                            src={o.src}
+                            alt="overlay"
+                            className="w-full h-full object-contain select-none pointer-events-none"
+                          />
                           <div
                             onPointerDown={(e) => handleResize(o.id, i, e)}
                             className="absolute right-0 bottom-0 w-3 h-3 bg-primary rounded-sm cursor-nwse-resize"
@@ -507,5 +627,3 @@ export const PdfEditor = () => {
 };
 
 export default PdfEditor;
-
-
