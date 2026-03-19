@@ -4,6 +4,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { PdfEditor } from "@/components/PdfEditor";
 import { FileText } from "lucide-react";
 import { Footer } from "@/components/footer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   return (
@@ -27,8 +28,8 @@ const Index = () => {
               Bug's PDF Editor & Markdown
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Merge PDFs, convert images to PDF, and write beautiful markdown
-              documents
+              Merge PDFs, convert images to PDF, edit PDF pages, and write
+              beautiful markdown documents
             </p>
           </div>
         </div>
@@ -36,18 +37,36 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
-        <div className="grid lg:grid-cols-2 gap-6 max-w-7xl mx-auto">
-          {/* Left Column - PDF Tools */}
-          <div className="space-y-6">
-            <PDFMerger />
-            <ImageToPDF />
-            {/* <PdfEditor /> */}
-          </div>
+        <div className="max-w-7xl mx-auto">
+          <Tabs defaultValue="edit" className="w-full">
+            <TabsList className="h-auto w-full flex-wrap gap-1 bg-muted/70 p-1">
+              <TabsTrigger value="edit" className="flex-1 min-w-[120px]">
+                PDF Editor
+              </TabsTrigger>
+              <TabsTrigger value="merge" className="flex-1 min-w-[120px]">
+                Merge PDFs
+              </TabsTrigger>
+              <TabsTrigger value="image" className="flex-1 min-w-[120px]">
+                Images to PDF
+              </TabsTrigger>
+              <TabsTrigger value="markdown" className="flex-1 min-w-[120px]">
+                Markdown
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Right Column - Markdown Editor */}
-          <div>
-            <MarkdownEditor />
-          </div>
+            <TabsContent value="edit">
+              <PdfEditor />
+            </TabsContent>
+            <TabsContent value="merge">
+              <PDFMerger />
+            </TabsContent>
+            <TabsContent value="image">
+              <ImageToPDF />
+            </TabsContent>
+            <TabsContent value="markdown">
+              <MarkdownEditor />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 

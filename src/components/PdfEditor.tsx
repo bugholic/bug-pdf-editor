@@ -36,6 +36,7 @@ type TextOverlay = OverlayBase & {
   fontSize: number; // in points; exported directly
   color: string; // hex
   bold: boolean;
+  eraseOriginal?: boolean;
 };
 
 type ImageOverlay = OverlayBase & {
@@ -128,9 +129,65 @@ export const PdfEditor = () => {
     (pageIndex: number, e: React.MouseEvent) => {
       if (tool === "text") {
         addTextOverlayAt(pageIndex, e.clientX, e.clientY);
+        return;
       }
+      setSelectedId(null);
     },
     [addTextOverlayAt, tool]
+  );
+
+  const addTextOverlayFromExistingSpan = useCallback(
+    (pageIndex: number, e: React.MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const textSpan = target.closest(
+        ".react-pdf__Page__textContent span"
+      ) as HTMLElement | null;
+      if (!textSpan) return;
+
+      const text = (textSpan.textContent ?? "").trim();
+      if (!text) return;
+
+      const pageEl = pageRefs.current[pageIndex];
+      if (!pageEl) return;
+
+      const pageRect = pageEl.getBoundingClientRect();
+      const spanRect = textSpan.getBoundingClientRect();
+      if (spanRect.width < 2 || spanRect.height < 2) return;
+
+      const xPercent = (spanRect.left - pageRect.left) / pageRect.width;
+      const yPercent = (spanRect.top - pageRect.top) / pageRect.height;
+      const widthPercent = spanRect.width / pageRect.width;
+      const heightPercent = spanRect.height / pageRect.height;
+      const computed = window.getComputedStyle(textSpan);
+      const fontSize = Math.max(8, Math.round(parseFloat(computed.fontSize)));
+      const weight = Number(computed.fontWeight);
+      const bold = Number.isFinite(weight) ? weight >= 600 : false;
+
+      const id = crypto.randomUUID();
+      const overlay: TextOverlay = {
+        id,
+        pageIndex,
+        xPercent: Math.max(0, Math.min(1, xPercent)),
+        yPercent: Math.max(0, Math.min(1, yPercent)),
+        widthPercent: Math.max(0.02, Math.min(1 - xPercent, widthPercent)),
+        heightPercent: Math.max(0.02, Math.min(1 - yPercent, heightPercent)),
+        rotationDeg: 0,
+        type: "text",
+        text,
+        fontSize,
+        color: "#111111",
+        bold,
+        eraseOriginal: true,
+      };
+
+      setOverlays((prev) => [...prev, overlay]);
+      setSelectedId(id);
+      setTool("select");
+      toast.success("Text is now editable. Update it and export.");
+    },
+    []
   );
 
   const onImageSelected = useCallback(
@@ -266,6 +323,14 @@ export const PdfEditor = () => {
     setSelectedId(null);
   }, [selectedId]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const exportPdf = useCallback(async () => {
     if (!pdfFile) {
       toast.error("Please upload a PDF first");
@@ -298,6 +363,15 @@ export const PdfEditor = () => {
           const y = pageHeight - yTop - h; // convert top-left to PDF bottom-left
 
           if (item.type === "text") {
+            if (item.eraseOriginal) {
+              page.drawRectangle({
+                x,
+                y,
+                width: w,
+                height: h,
+                color: rgb(1, 1, 1),
+              });
+            }
             const font = item.bold ? helveticaBold : helvetica;
             // Center-left baseline positioning: drawText uses bottom-left; use y + (h - fontSize) / 2 for better centering
             const fontSize = item.fontSize;
@@ -354,7 +428,7 @@ export const PdfEditor = () => {
       <CardHeader className="p-0 mb-4">
         <CardTitle className="text-xl">PDF Editor</CardTitle>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               ref={pdfInputRef}
               type="file"
@@ -422,6 +496,10 @@ export const PdfEditor = () => {
             </Button>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Double-click existing PDF text to edit it, or use Text to add new
+          content.
+        </p>
       </CardHeader>
 
       <CardContent className="p-0">
@@ -454,11 +532,14 @@ export const PdfEditor = () => {
                   className="relative border rounded-md overflow-hidden"
                   ref={(el) => (pageRefs.current[i] = el)}
                 >
-                  <div onClick={(e) => onPageClick(i, e)}>
+                  <div
+                    onClick={(e) => onPageClick(i, e)}
+                    onDoubleClick={(e) => addTextOverlayFromExistingSpan(i, e)}
+                  >
                     <Page
                       pageNumber={i + 1}
                       width={800}
-                      renderTextLayer={false}
+                      renderTextLayer
                       renderAnnotationLayer={false}
                     />
                   </div>
@@ -581,6 +662,25 @@ export const PdfEditor = () => {
                                     }
                                   />
                                   Bold
+                                </label>
+                                <label className="flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(o.eraseOriginal)}
+                                    onChange={(e) =>
+                                      setOverlays((prev) =>
+                                        prev.map((x) =>
+                                          x.id === o.id && x.type === "text"
+                                            ? {
+                                                ...x,
+                                                eraseOriginal: e.target.checked,
+                                              }
+                                            : x
+                                        )
+                                      )
+                                    }
+                                  />
+                                  Replace original
                                 </label>
                               </div>
                             )}
